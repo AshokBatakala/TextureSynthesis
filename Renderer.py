@@ -214,11 +214,11 @@ class Renderer(nn.Module):
         # image[...,3] = np.where(image[...,3] > alpha_max/2, 1.0, 0.0)
         image = torch.flip(images, [2])
         return image 
+    
     @staticmethod
     def binary_mask(rendered_image,threshold = 0.5):
         ''' 
         creates binary mask from the rendered image
-
         rendered_image : (B,H,W,4)
         returns : (B,H,W)
         '''
