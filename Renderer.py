@@ -58,6 +58,11 @@ class Renderer(nn.Module):
         blur_radius = 0.0,                  
         device='cuda:0'
     ):
+        
+        """
+        setup the renderer. with camera and rasterizer
+        
+        """
         super(Renderer, self).__init__()
         self.image_resolution = image_resolution
         self.focal_length = focal_length
@@ -99,10 +104,10 @@ class Renderer(nn.Module):
                             )
 
     def load_inputs(self,
-                   verts_T_paths,
-                   standard_body_path,
-                    euler_list = None,
+                    verts_T_paths,
+                    standard_body_path,
                     tm_paths = None,
+                    euler_list = None,
                     change_handedness = True,
                     degrees = True,
                     require_grad = True,
@@ -110,22 +115,21 @@ class Renderer(nn.Module):
 
 
         """ 
-        retuns a dict of inputs for the renderer
         inputs :
-        verts_T_paths : path to the verts_T file ; pickle file from smplmarket dataset
-        euler_list : euler angles for the camera (in degrees)
-        degree : if True, euler angles are in degrees
-        texture_map_path : path to the texture map
+        verts_T_paths : list of paths to verts and T pickle files
+        standard_body_path : path to the standard body pickle file
+        euler_list : list of euler angles for the camera (in degrees)
+        degrees : if True, euler angles are in degrees
+        tm_paths : list of paths to the texture maps
         change_handedness : if True, flips the y axis of the verts and T
+        require_grad : if True, sets requires grad for all the tensors
  
-        returns : batch of image of shape (batch_size,image_resolution,image_resolution,4)
-
                     all are torch tensors
 
-                verts   : verts of the mesh (batch_size,6890,3)
-                T       : translation vector (batch_size,3)
-                R       : rotation matrix (batch_size,3,3)
-                texture_map : texture map (batch_size,H,W,3)
+        verts   : verts of the mesh (batch_size,6890,3)
+        T       : translation vector (batch_size,3)
+        R       : rotation matrix (batch_size,3,3)
+        texture_map : texture map (batch_size,H,W,3)
 
         """
 
@@ -160,9 +164,9 @@ class Renderer(nn.Module):
 
 
         if require_grad:
-            self.verts.requires_grad =True
-            self.T.requires_grad = True 
-            self.R.requires_grad = True
+            self.verts.requires_grad = self.T.requires_grad = self.R.requires_grad = True
+            # self.T.requires_grad = True 
+            # self.R.requires_grad = True
             if self.texture_map is not None:
                 self.texture_map.requires_grad = True
 
@@ -197,7 +201,9 @@ class Renderer(nn.Module):
 
 
     def render(self):
-        # --------------------------- render ------------------------------------
+        """
+                returns : batch of image of shape (batch_size,image_resolution,image_resolution,4)
+        """
         self.mesh = self.mesh.to(self.device)
         self.renderer = self.renderer.to(self.device)
 
