@@ -54,7 +54,7 @@ class Renderer(nn.Module):
     def __init__(self,
         image_resolution = 224,
         focal_length = 5000,
-        faces_per_pixel = 1,            
+        faces_per_pixel = 50,            
         blur_radius = 0.0,                  
         device='cuda:0'
     ):
@@ -129,7 +129,8 @@ class Renderer(nn.Module):
         verts   : verts of the mesh (batch_size,6890,3)
         T       : translation vector (batch_size,3)
         R       : rotation matrix (batch_size,3,3)
-        texture_map : texture map (batch_size,H,W,3)
+        texture_map : texture map (batch_size,H,W,3) 
+                    note: it's range 0 to 255, not 0 to 1. but float
 
         """
 
@@ -154,7 +155,7 @@ class Renderer(nn.Module):
         
         # texture map
         texture_map = torch.stack([torch.Tensor(np.array(plt.imread(path))) for path in (tm_paths or [])], 0).type(dtype) if tm_paths else None
-            
+    
         self.verts = verts
         self.T = T
         self.R = R
@@ -178,19 +179,22 @@ class Renderer(nn.Module):
         with open(self.standard_body_path, 'rb') as f:
             standard_values = pickle.load(f)
         
-        verts_uvs = standard_values['vert_uv'].repeat(self.batch_size,1,1)
-        faces_uvs = standard_values['face_uvs'].repeat(self.batch_size,1,1)
-        faces = standard_values['faces'].repeat(self.batch_size,1,1)
+        self.verts_uvs = standard_values['vert_uv'].repeat(self.batch_size,1,1)
+        self.faces_uvs = standard_values['face_uvs'].repeat(self.batch_size,1,1)
+        self.faces = standard_values['faces'].repeat(self.batch_size,1,1)
 
         # --------------------------- settings  ---------------------------------
 
-        # Textures class is deprecated. change it later
-        tex = Textures(verts_uvs=verts_uvs,
-                    faces_uvs=faces_uvs,
-                    maps= self.texture_map
-                    )
+        # ---------------
+        # shifted below
+        # ---------------
+        # # Textures class is deprecated. change it later
+        # tex = Textures(verts_uvs=self.verts_uvs,
+        #             faces_uvs=self.faces_uvs,
+        #             maps= self.texture_map
+        #             )
         
-        self.mesh = Meshes(verts=self.verts, faces = faces,textures=tex)
+        # self.mesh = Meshes(verts=self.verts, faces = self.faces,textures=tex)
         
 
         # below operation makes them non-leaf.so, avoid it
@@ -203,6 +207,22 @@ class Renderer(nn.Module):
         returns : 
         batch of image of shape (batch_size,image_resolution,image_resolution,4)
         """
+
+        # --------------- 
+        # tex must be computed everytime it renders. else texture_map will not be updated
+        # ---------------
+        
+        # Textures class is deprecated. change it later
+        tex = Textures(verts_uvs=self.verts_uvs,
+                    faces_uvs=self.faces_uvs,
+                    maps= self.texture_map
+                    )
+        
+        self.mesh = Meshes(verts=self.verts, faces = self.faces,textures=tex)
+        
+
+
+
         self.mesh = self.mesh.to(self.device)
         self.renderer = self.renderer.to(self.device)
 
@@ -234,11 +254,3 @@ class Renderer(nn.Module):
         image = self.render()[0,...,:3]
         plt.imshow(image.cpu().detach().numpy())
         plt.show()
-
-# --------------------------- utils ------------------------------------
-    
-
-from PIL import Image
-import matplotlib.pyplot as plt
-import numpy as np
-

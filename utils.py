@@ -6,11 +6,10 @@ import torch
 
 
 
-# images without background
 def remove_background(image_path,seg_mask_path):
     '''
     returns image without background. 
-    A numpy array of shape (H,W,3)
+    A numpy array of shape (H,W,3). normalized between 0 and 1
 
     Note: 
     The background should be 0 in the segmentation mask.
@@ -23,16 +22,35 @@ def remove_background(image_path,seg_mask_path):
     seg_mask = plt.imread(seg_mask_path)
     binary_mask = np.where(seg_mask > 0, 1, 0)
     image_without_background = image * binary_mask[...,None]
-    return image_without_background
+    return image_without_background / 255.0
     
 
-def squared_image(image_path ): 
+def squared_image(img=None,image_path = None): 
     '''
-    returned image tensor of shape (128,128,3)
-    pastes the image in the center of a white square of size 128,128
+    pastes the image in the center of a black square of size 128,128
+
+    args:
+    img : numpy array of shape (H,W,C) normalized between 0 and 1
+    image_path : path to image
+
+    returns:
+    numpy array : (128,128,3) normalized between 0 and 1
     '''
-    img = Image.open(image_path)
-    new_img = Image.new('RGB', (128, 128), (255, 255, 255))
-    new_img.paste(img, ((128 - img.size[0]) // 2, (128 - img.size[1]) // 2))
-    image = np.array(new_img)/ 255.0
-    return torch.tensor(image)
+    assert img is None or image_path is None, "only one of img or image_path should be provided"
+    
+    if image_path is not None:
+        img = plt.imread(image_path) / 255.0
+
+    if img.dtype == np.uint8:
+        img = img / 255.0 # normalize the image if it is not normalized
+        
+    H,W,C = img.shape
+    h1 = (128 - H)//2
+    h2 = h1 + H
+    w1 = (128 - W)//2
+    w2 = w1 + W
+
+    new_img = np.zeros((128,128,3)) # white background
+    new_img[h1:h2,w1:w2,:] = img
+    return new_img # normalize the image
+
