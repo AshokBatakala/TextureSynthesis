@@ -184,7 +184,6 @@ class Renderer(nn.Module):
 
         # --------------------------- settings  ---------------------------------
 
-        # create texture and mesh
         # Textures class is deprecated. change it later
         tex = Textures(verts_uvs=verts_uvs,
                     faces_uvs=faces_uvs,
@@ -192,7 +191,6 @@ class Renderer(nn.Module):
                     )
         
         self.mesh = Meshes(verts=self.verts, faces = faces,textures=tex)
-        # move to device
         
 
         # below operation makes them non-leaf.so, avoid it
@@ -202,7 +200,7 @@ class Renderer(nn.Module):
 
     def render(self):
         """
-                returns : batch of image of shape (batch_size,image_resolution,image_resolution,4)
+        returns : batch of image of shape (batch_size,image_resolution,image_resolution,4)
         """
         self.mesh = self.mesh.to(self.device)
         self.renderer = self.renderer.to(self.device)
