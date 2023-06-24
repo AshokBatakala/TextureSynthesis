@@ -32,12 +32,12 @@ import os
 sys.path.append(os.path.abspath('')) 
 
 
-# Setup
-if torch.cuda.is_available():
-    device = torch.device("cuda:0")
-    torch.cuda.set_device(device)
-else:
-    device = torch.device("cpu")
+# # Setup
+# if torch.cuda.is_available():
+#     device = torch.device("cuda:0")
+#     torch.cuda.set_device(device)
+# else:
+#     device = torch.device("cpu")
 
 
 
@@ -56,7 +56,7 @@ class Renderer(nn.Module):
         focal_length = 5000,
         faces_per_pixel = 50,            
         blur_radius = 0.0,                  
-        device='cuda:0'
+        device=None
     ):
         
         """
@@ -67,7 +67,7 @@ class Renderer(nn.Module):
         self.image_resolution = image_resolution
         self.focal_length = focal_length
         self.faces_per_pixel = faces_per_pixel
-        self.device = device
+        self.device = device if device else torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
         image_size = ((self.image_resolution, self.image_resolution),)
@@ -81,7 +81,7 @@ class Renderer(nn.Module):
                                     image_size = image_size,
                                     # R = self.R,
                                     # T = self.T,           # these can be given to renderer forward function
-                                    device = device)
+                                    device = self.device)
     
         raster_settings = RasterizationSettings(
             image_size= self.image_resolution,
@@ -89,7 +89,7 @@ class Renderer(nn.Module):
             faces_per_pixel=self.faces_per_pixel,
         )
 
-        lights = AmbientLights(device=device)
+        lights = AmbientLights(device=self.device)
 
         self.renderer = MeshRenderer(
                         rasterizer=MeshRasterizer(
@@ -97,7 +97,7 @@ class Renderer(nn.Module):
                             raster_settings=raster_settings
                             ),
                         shader=SoftPhongShader(
-                            device=device,
+                            device=self.device,
                             cameras=cameras,
                             lights=lights
                             )
