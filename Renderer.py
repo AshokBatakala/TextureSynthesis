@@ -29,7 +29,7 @@ from pytorch3d.renderer import (
 # add path for demo utils functions
 import sys
 import os
-sys.path.append(os.path.abspath(''))
+sys.path.append(os.path.abspath('')) 
 
 
 # Setup
@@ -105,7 +105,7 @@ class Renderer(nn.Module):
 
     def load_inputs(self,
                     verts_T_paths,
-                    standard_body_path,
+                    standard_body_path = 'data/meta/standard_body.pkl',
                     tm_paths = None,
                     euler_list = None,
                     change_handedness = True,
@@ -200,7 +200,8 @@ class Renderer(nn.Module):
 
     def render(self):
         """
-        returns : batch of image of shape (batch_size,image_resolution,image_resolution,4)
+        returns : 
+        batch of image of shape (batch_size,image_resolution,image_resolution,4)
         """
         self.mesh = self.mesh.to(self.device)
         self.renderer = self.renderer.to(self.device)
@@ -213,9 +214,24 @@ class Renderer(nn.Module):
         # image[...,3] = np.where(image[...,3] > alpha_max/2, 1.0, 0.0)
         image = torch.flip(images, [2])
         return image 
+    @staticmethod
+    def binary_mask(rendered_image,threshold = 0.5):
+        ''' 
+        creates binary mask from the rendered image
+
+        rendered_image : (B,H,W,4)
+        returns : (B,H,W)
+        '''
+        image = rendered_image.cpu().detach().numpy()
+        alpha_max = np.max(image[...,3])
+        image[...,3] = np.where(image[...,3] > alpha_max * threshold, 1.0, 0.0)
+        return image[...,3]
     
     def show(self):
-        image = self.render()
+        ''' 
+        plots the first image in the Batch of rendered images
+        '''
+        image = self.render()[0,...,:3]
         plt.imshow(image.cpu().detach().numpy())
         plt.show()
 
