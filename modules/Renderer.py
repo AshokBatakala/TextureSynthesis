@@ -205,7 +205,7 @@ class Renderer(nn.Module):
     def render(self):
         """
         returns : 
-        batch of image of shape (batch_size,image_resolution,image_resolution,4)
+        images (batch_size,image_resolution,image_resolution,4) : normalized rgb values and alpha channel  
         """
 
         # --------------- 
