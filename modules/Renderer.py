@@ -26,27 +26,13 @@ from pytorch3d.renderer import (
     TexturesVertex
 )
 
-# add path for demo utils functions
-import sys
-import os
-sys.path.append(os.path.abspath('')) 
-
-
-# # Setup
-# if torch.cuda.is_available():
-#     device = torch.device("cuda:0")
-#     torch.cuda.set_device(device)
-# else:
-#     device = torch.device("cpu")
-
-
 
 import pickle
+import numpy as np
 from pytorch3d.renderer import Textures
 from scipy.spatial.transform import Rotation as SciR
 from pytorch3d.renderer.cameras import PerspectiveCameras
 from pytorch3d.renderer.lighting import AmbientLights
-import numpy as np
 
 # --------------------------- Renderer class -----------------------------------
 
@@ -102,36 +88,103 @@ class Renderer(nn.Module):
                             lights=lights
                             )
                             )
+    
 
-    def load_inputs(self,
-                    verts_T_paths,
+    def load_input_params(self, **kwargs):
+        """
+        some of these don't need gradients.
+        """
+        self.verts_uvs = nn.Parameter(kwargs['verts_uvs'],requires_grad=False)
+        self.faces_uvs = nn.Parameter(kwargs['faces_uvs'],requires_grad=False)
+        self.texture_map = nn.Parameter(kwargs['maps']) if kwargs['maps'] is not None else None
+        self.verts = nn.Parameter(kwargs['verts'])
+        self.faces = nn.Parameter(kwargs['faces'],requires_grad=False)
+        self.T = nn.Parameter(kwargs['T'])
+        self.R = nn.Parameter(kwargs['R'])
+
+
+    
+    def render(self):
+        """
+        returns : 
+        batch of image of shape (batch_size,image_resolution,image_resolution,4)
+        """
+
+        self.to(self.device)
+
+        # tex must be computed everytime it renders. else texture_map will not be updated
+        # Textures class is deprecated. change it later
+        tex = Textures(verts_uvs=self.verts_uvs,
+                    faces_uvs=self.faces_uvs,
+                    maps= self.texture_map
+                    )
+        
+        self.mesh = Meshes(verts=self.verts, faces = self.faces,textures=tex)
+
+        images = self.renderer(self.mesh, R = self.R, T = self.T)
+        images[...,:3]/= 255.0  # normalize rgbt values but not alpha channel.
+        image = torch.flip(images, [2]) # this is specific to SMPLMarket dataset.
+        return image 
+    
+
+    def show(self,i = 0):
+        ''' 
+        plots the i th image in the Batch of rendered images
+        '''
+        image = self.render()[i,...,:3]
+        plt.figure(figsize=(3,3))
+        plt.imshow(image.cpu().detach().numpy())
+        plt.axis('off')
+        plt.show()
+
+    
+    @staticmethod
+    def binary_mask(rendered_image,threshold = 0.5):
+        ''' 
+        creates binary mask from the rendered image
+        rendered_image : (B,H,W,4)
+        returns : (B,H,W)
+        '''
+        image = rendered_image.cpu().detach().numpy()
+        alpha_max = np.max(image[...,3])
+        image[...,3] = np.where(image[...,3] > alpha_max * threshold, 1.0, 0.0)
+        return image[...,3]
+    
+
+    # ==============================================
+    # it will be later shifted to dataloader utils
+    # ==============================================
+
+    @staticmethod
+    def load_data(  verts_T_paths,
                     standard_body_path = 'data/meta/standard_body.pkl',
                     tm_paths = None,
                     euler_list = None,
                     change_handedness = True,
                     degrees = True,
-                    require_grad = True,
                     dtype = torch.float32):
 
 
         """ 
         inputs :
+        ========
+
         verts_T_paths : list of paths to verts and T pickle files
         standard_body_path : path to the standard body pickle file
         euler_list : list of euler angles for the camera (in degrees)
         degrees : if True, euler angles are in degrees
         tm_paths : list of paths to the texture maps
-        change_handedness : if True, flips the y axis of the verts and T
-        require_grad : if True, sets requires grad for all the tensors
- 
+        change_handedness : if True, flips the y axis of the verts and T 
                     all are torch tensors
 
+                    
+        returns a dict :
+        =================
         verts   : verts of the mesh (batch_size,6890,3)
         T       : translation vector (batch_size,3)
         R       : rotation matrix (batch_size,3,3)
         texture_map : texture map (batch_size,H,W,3) 
                     note: it's range 0 to 255, not 0 to 1. but float
-
         """
 
         # get the batch size and assert 
@@ -155,102 +208,27 @@ class Renderer(nn.Module):
         
         # texture map
         texture_map = torch.stack([torch.Tensor(np.array(plt.imread(path))) for path in (tm_paths or [])], 0).type(dtype) if tm_paths else None
-    
-        self.verts = verts
-        self.T = T
-        self.R = R
-        self.texture_map = texture_map
-        self.batch_size = batch_size
-        self.standard_body_path = standard_body_path
 
-
-        if require_grad:
-            self.verts.requires_grad = self.T.requires_grad = self.R.requires_grad = True
-            # self.T.requires_grad = True 
-            # self.R.requires_grad = True
-            if self.texture_map is not None:
-                self.texture_map.requires_grad = True
-
-
-
-        # --------------------------- loading data  ------------------------------------
+        # ---------------------------  from pickle file -----------------------
 
         # load the data
-        with open(self.standard_body_path, 'rb') as f:
+        with open(standard_body_path, 'rb') as f:
             standard_values = pickle.load(f)
         
-        self.verts_uvs = standard_values['vert_uv'].repeat(self.batch_size,1,1)
-        self.faces_uvs = standard_values['face_uvs'].repeat(self.batch_size,1,1)
-        self.faces = standard_values['faces'].repeat(self.batch_size,1,1)
+        verts_uvs = standard_values['vert_uv'].repeat(batch_size,1,1)
+        faces_uvs = standard_values['face_uvs'].repeat(batch_size,1,1)
+        faces = standard_values['faces'].repeat(batch_size,1,1)
 
-        # --------------------------- settings  ---------------------------------
-
-        # ---------------
-        # shifted below
-        # ---------------
-        # # Textures class is deprecated. change it later
-        # tex = Textures(verts_uvs=self.verts_uvs,
-        #             faces_uvs=self.faces_uvs,
-        #             maps= self.texture_map
-        #             )
-        
-        # self.mesh = Meshes(verts=self.verts, faces = self.faces,textures=tex)
-        
-
-        # below operation makes them non-leaf.so, avoid it
-        # self.R = self.R.to(self.device)
-        # self.T = self.T.to(self.device)
-
-
-    def render(self):
-        """
-        returns : 
-        batch of image of shape (batch_size,image_resolution,image_resolution,4)
-        """
-
-        # --------------- 
-        # tex must be computed everytime it renders. else texture_map will not be updated
-        # ---------------
-        
-        # Textures class is deprecated. change it later
-        tex = Textures(verts_uvs=self.verts_uvs,
-                    faces_uvs=self.faces_uvs,
-                    maps= self.texture_map
-                    )
-        
-        self.mesh = Meshes(verts=self.verts, faces = self.faces,textures=tex)
-        
-
-
-
-        self.mesh = self.mesh.to(self.device)
-        self.renderer = self.renderer.to(self.device)
-
-        images = self.renderer(self.mesh, R = self.R.to(self.device), T = self.T.to(self.device))
-        images[...,:3]/= 255.0  # normalize rgb values but not alpha channel.
-        # image = images[0, ..., :]
-        # get alpha_max 
-        # alpha_max = np.max(image[...,3])
-        # image[...,3] = np.where(image[...,3] > alpha_max/2, 1.0, 0.0)
-        image = torch.flip(images, [2])
-        return image 
+        # --------------------------- return  ---------------------------------
     
-    @staticmethod
-    def binary_mask(rendered_image,threshold = 0.5):
-        ''' 
-        creates binary mask from the rendered image
-        rendered_image : (B,H,W,4)
-        returns : (B,H,W)
-        '''
-        image = rendered_image.cpu().detach().numpy()
-        alpha_max = np.max(image[...,3])
-        image[...,3] = np.where(image[...,3] > alpha_max * threshold, 1.0, 0.0)
-        return image[...,3]
+        data = {'verts_uvs':verts_uvs,
+                'faces_uvs':faces_uvs,
+                'maps': texture_map ,
+                'verts':verts,
+                'faces':faces,
+                'T':T,
+                'R':R,
+                  }
+        
+        return data
     
-    def show(self):
-        ''' 
-        plots the first image in the Batch of rendered images
-        '''
-        image = self.render()[0,...,:3]
-        plt.imshow(image.cpu().detach().numpy())
-        plt.show()
