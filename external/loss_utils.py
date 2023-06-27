@@ -61,7 +61,7 @@ def tv_loss(tex):
 class PerceptualTextureLoss(object):
     def __init__(self):
         # from ..nnutils.perceptual_loss import PerceptualLoss
-        from perceptual_loss import PerceptualLoss
+        from .perceptual_loss import PerceptualLoss
 
         self.perceptual_loss = PerceptualLoss()
 

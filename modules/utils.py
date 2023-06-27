@@ -54,3 +54,23 @@ def squared_image(img=None,image_path = None):
     new_img[h1:h2,w1:w2,:] = img
     return new_img # normalize the image
 
+
+
+def get_texture_map(texture_flow,image,device = torch.device('cpu')):
+
+    """
+    texture_flow: [1, H, W, 2]
+    image: [1, H_in, W_in, 3] :  ndarray or tensor : range [0, 225]
+
+    return: tensor : [1, H, W, 3]
+    """
+    # change image to (N,C,H in,W in) format
+    image = torch.tensor(image).permute(0,3,1,2)
+
+    image = image.float().to(device)
+    texture_flow = texture_flow.float().to(device)
+    # print(f"{image.requires_grad = }, {texture_flow.requires_grad = }")
+
+    texture_map = torch.nn.functional.grid_sample(image,texture_flow)
+    texture_map = texture_map.permute(0,2,3,1)
+    return texture_map

@@ -12,17 +12,37 @@ def read_image(image_path):
 
 
 import matplotlib.pyplot as plt
-def plot_image(image,gray=False,tensor=False,figsize=(3,3)):
+import torch
+
+def lazy_plot(image,gray=False,figsize=(2.5,2.5)):
+
     """
     Plot image
     image: [H, W, 3]
     if tensor: image: [3, H, W]
     """
-    if tensor:
-        image = image.permute(1,2,0).numpy()
+    # 1.check if tensor
+    if isinstance(image,torch.Tensor) :
+        image = image.detach().cpu().numpy()
+    # 2. batch
+    if len(image.shape) == 4:
+        N = image.shape[0]
+        if N != 1:
+            print("Plotting only the first image in the batch")
+        image = image[0]
+    # 3. channel
+    first_channel = image.shape[0]
+    if first_channel in [3, 1, 4]:
+        image = image.transpose(1,2,0)
+    # 4. check the range of the image
+    if image.max() > 1 + 1e-3:
+        image = image / 255.0
+    # 5. plot
     plt.figure(figsize=figsize)
     if gray:
         plt.imshow(image,cmap='gray')
     else:
         plt.imshow(image)
+    plt.axis('off')
     plt.show()
+
