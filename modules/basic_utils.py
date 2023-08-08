@@ -1,3 +1,4 @@
+# ashok added code 
 import cv2
 
 def read_image(image_path):
@@ -14,13 +15,19 @@ def read_image(image_path):
 import matplotlib.pyplot as plt
 import torch
 
-def lazy_plot(image,gray=False,figsize=(2.5,2.5)):
+def lazy_plot(image,gray=False,figsize=(2.5,2.5),centered=False):
 
     """
+    expected usage:
+    image is np_array or a tensor
+
     Plot image
     image: [H, W, 3]
     if tensor: image: [3, H, W]
     """
+    # if centered i.e. b/w [-1,+1] make it [0,1]
+    if centered:
+      image = (image+1)/2
     # 1.check if tensor
     if isinstance(image,torch.Tensor) :
         image = image.detach().cpu().numpy()
@@ -44,5 +51,3 @@ def lazy_plot(image,gray=False,figsize=(2.5,2.5)):
     else:
         plt.imshow(image)
     plt.axis('off')
-    plt.show()
-
