@@ -7,4 +7,5 @@ create conda enviroment using
 
 # note for me
 - only renderer code is included here.
+- All the experiments should be put in notebook files ( ex: experiment_1.ipynb )
 
